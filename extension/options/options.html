@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>OpenCode in Chrome - settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px;
+           background: #0d1117; color: #e6edf3; }
+    h1 { font-size: 20px; }
+    label { display: block; margin: 14px 0 4px; font-size: 13px; color: #8b949e; }
+    input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
+            border: 1px solid #30363d; background: #161b22; color: #e6edf3; font-size: 14px; }
+    button { margin-top: 16px; padding: 8px 18px; border-radius: 6px; border: none;
+             background: #238636; color: white; font-size: 14px; cursor: pointer; }
+    .hint { font-size: 12px; color: #8b949e; margin-top: 4px; }
+    #msg { margin-top: 12px; color: #3fb950; font-size: 13px; }
+    code { background: #161b22; padding: 1px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>OpenCode in Chrome</h1>
+  <p class="hint">Connect this browser to your local opencode agent via the bridge.</p>
+
+  <label for="wsUrl">Bridge WebSocket URL</label>
+  <input id="wsUrl" placeholder="ws://127.0.0.1:8766">
+
+  <label for="token">Bridge token</label>
+  <input id="token" placeholder="paste token from bridge output">
+  <p class="hint">The bridge prints its token on first start and stores it in
+     <code>~/.opencode-chrome/token</code>. Copy it here.</p>
+
+  <button id="save">Save &amp; reconnect</button>
+  <div id="msg"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

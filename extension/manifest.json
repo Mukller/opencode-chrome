@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "OpenCode in Chrome",
+  "version": "0.1.0",
+  "description": "Let your local opencode agent see and drive this browser: tabs, clicks, JS, screenshots — over a localhost WebSocket bridge.",
+  "author": "Anton Petnitsky",
+  "permissions": ["debugger", "tabs", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options/options.html",
+  "action": {
+    "default_title": "OpenCode in Chrome",
+    "default_popup": "options/popup.html"
+  },
+  "icons": {
+    "128": "icon128.png"
+  }
+}
