@@ -1,4 +1,16 @@
+<div align="center">
+
+**English** • [Русский](README.md)
+
+</div>
+
 # OpenCode in Chrome
+
+<p align="center">
+  <a href="https://github.com/Mukller">
+    <img src="https://img.shields.io/badge/Anton%20Petnitsky-Developer-0d1117?style=for-the-badge&logo=github&logoColor=white&labelColor=0d1117&color=58a6ff" alt="Anton Petnitsky" />
+  </a>
+</p>
 
 Let your local [opencode](https://opencode.ai) agent see and drive the browser — tabs, clicks, JS evaluation, screenshots.
 
