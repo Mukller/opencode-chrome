@@ -3,3 +3,14 @@ package-lock.json
 .edge-profile/
 *.log
 bridge.log
+
+*.png
+*.txt
+snip_*.js
+ag_*.mjs
+ag-*.png
+oc-li-*.png
+oc-last-screenshot.png
+oc-shot.png
+targets.json
+feed-ws.txt

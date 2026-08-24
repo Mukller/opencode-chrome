@@ -36,6 +36,7 @@ const TOKEN = loadToken();
 
 // ---------- extension connection state ----------
 let extSock = null; // currently connected, authenticated extension socket
+const driverSocks = new Set();
 let reqSeq = 0;
 const pending = new Map(); // id -> {resolve, reject, timer}
 
@@ -52,6 +53,10 @@ function askExtension(cmd, params = {}, timeoutMs = 45000) {
     pending.set(id, { resolve, reject, timer });
     extSock.send(JSON.stringify({ type: "req", id, cmd, params }));
   });
+}
+
+function driverSend(sock, obj) {
+  if (sock && sock.readyState === 1) sock.send(JSON.stringify(obj));
 }
 
 function wsSend(sock, obj) {
@@ -82,10 +87,26 @@ wss.on("connection", (sock, req) => {
         sock.close();
         return;
       }
+      if (msg.role === "driver") {
+        sock.isDriver = true;
+        driverSocks.add(sock);
+        console.error(`[bridge] driver connected`);
+        wsSend(sock, { type: "hello_ok" });
+        return;
+      }
       sock.isExt = true;
       extSock = sock;
       console.error(`[bridge] chrome extension connected`);
       wsSend(sock, { type: "hello_ok" });
+      return;
+    }
+
+    if (sock.isDriver) {
+      if (msg.type === "req") {
+        askExtension(msg.cmd, msg.params || {})
+          .then((data) => driverSend(sock, { type: "res", id: msg.id, ok: true, data }))
+          .catch((e) => driverSend(sock, { type: "res", id: msg.id, ok: false, error: e.message }));
+      }
       return;
     }
 
@@ -102,6 +123,10 @@ wss.on("connection", (sock, req) => {
   });
 
   sock.on("close", () => {
+    if (sock.isDriver) {
+      driverSocks.delete(sock);
+      return;
+    }
     if (sock === extSock) {
       console.error("[bridge] chrome extension disconnected");
       extSock = null;
