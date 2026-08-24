@@ -175,6 +175,11 @@ const TOOLS = [
   { name: "chrome_read", description: "Read page title, url and visible text.", inputSchema: { type: "object", properties: { tabId: { type: "number" }, maxChars: { type: "number" } } } },
   { name: "chrome_screenshot", description: "Capture a PNG screenshot of the tab; returns an image content block.", inputSchema: { type: "object", properties: { tabId: { type: "number" } } } },
   { name: "chrome_console", description: "Return recent console logs / page exceptions captured while attached.", inputSchema: { type: "object", properties: { tabId: { type: "number" }, last: { type: "number", default: 50 } } } },
+  { name: "chrome_click_coords", description: "Click at exact viewport coordinates using REAL mouse events (bypasses bot detection).", inputSchema: { type: "object", properties: { x: { type: "number" }, y: { type: "number" }, tabId: { type: "number" } }, required: ["x", "y"] } },
+  { name: "chrome_type", description: "Type text into currently focused element using REAL keyboard events (bypasses bot detection).", inputSchema: { type: "object", properties: { text: { type: "string" }, tabId: { type: "number" } }, required: ["text"] } },
+  { name: "chrome_scroll", description: "Scroll page using mouse wheel events.", inputSchema: { type: "object", properties: { direction: { type: "string", enum: ["up", "down"] }, amount: { type: "number", default: 500 }, tabId: { type: "number" } } } },
+  { name: "chrome_click_and_wait", description: "Click element and wait for page navigation.", inputSchema: { type: "object", properties: { selector: { type: "string" }, timeout: { type: "number" }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_fill_and_submit", description: "Fill input and press Enter to submit form.", inputSchema: { type: "object", properties: { selector: { type: "string" }, text: { type: "string" }, tabId: { type: "number" } }, required: ["selector", "text"] } },
 ];
 
 async function callTool(name, args) {
@@ -214,6 +219,16 @@ async function callTool(name, args) {
     }
     case "chrome_console":
       return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_console", args), null, 2) }] };
+    case "chrome_click_coords":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_click_coords", args)) }] };
+    case "chrome_type":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_type", args)) }] };
+    case "chrome_scroll":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_scroll", args)) }] };
+    case "chrome_click_and_wait":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_click_and_wait", args)) }] };
+    case "chrome_fill_and_submit":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_fill_and_submit", args)) }] };
     default:
       throw new Error("unknown tool: " + name);
   }

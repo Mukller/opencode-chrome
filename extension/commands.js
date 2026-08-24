@@ -1,5 +1,5 @@
 // OpenCode in Chrome - command dispatcher
-// Each handler receives params, returns JSON-safe data.
+// ALL form interactions use CDP Input domain (real mouse/keyboard)
 
 async function handleCommand(cmd, p) {
   switch (cmd) {
@@ -16,11 +16,15 @@ async function handleCommand(cmd, p) {
       return { id: tab.id };
     }
 
+    case "tab_close": {
+      await chrome.tabs.remove(Number(p.tabId));
+      return { closed: Number(p.tabId) };
+    }
+
     case "tab_navigate": {
       const id = await requireTab(p);
       if (p.url) {
         await chrome.tabs.update(id, { url: p.url });
-        // give the page a moment; caller can poll via tab_read
         await new Promise(r => setTimeout(r, 500));
       }
       const tab = await chrome.tabs.get(id);
@@ -37,37 +41,62 @@ async function handleCommand(cmd, p) {
       throw new Error("timeout waiting for load");
     }
 
+    // JS evaluation (for reading, not for form interactions)
     case "tab_eval": {
       const id = await requireTab(p);
       return { value: await evalInTab(id, String(p.expression), !!p.awaitPromise) };
     }
 
+    // ===== FORM INTERACTIONS (all use CDP Input = real events) =====
+
     case "tab_click": {
+      // Click by CSS selector using REAL mouse events
       const id = await requireTab(p);
-      return await evalInTab(id, "(" + CLICK_HELPER + ")(" + JSON.stringify(p.selector) + ")");
+      return await cdpClickSelector(id, String(p.selector));
+    }
+
+    case "tab_click_coords": {
+      // Click at exact coordinates using REAL mouse events
+      const id = await requireTab(p);
+      await cdpMouseClick(id, Number(p.x), Number(p.y));
+      return { clicked: true, x: p.x, y: p.y };
     }
 
     case "tab_fill": {
+      // Fill input by CSS selector using REAL click + REAL typing
       const id = await requireTab(p);
-      return await evalInTab(
-        id,
-        "(" + FILL_HELPER + ")(" + JSON.stringify(p.selector) + ", " + JSON.stringify(String(p.text == null ? "" : p.text)) + ")"
-      );
+      return await cdpFillSelector(id, String(p.selector), String(p.text == null ? "" : p.text));
+    }
+
+    case "tab_type": {
+      // Type text into currently focused element using REAL keyboard
+      const id = await requireTab(p);
+      await cdpTypeText(id, String(p.text || ""));
+      return { typed: true };
     }
 
     case "tab_press_key": {
+      // Press a key using REAL keyboard events
       const id = await requireTab(p);
-      const key = String(p.key || "Enter");
-      return await evalInTab(id, `
-        (() => {
-          const el = document.activeElement || document.body;
-          const ev = new KeyboardEvent("keydown", { key: ${JSON.stringify(key)}, bubbles: true });
-          el.dispatchEvent(ev);
-          el.dispatchEvent(new KeyboardEvent("keyup", { key: ${JSON.stringify(key)}, bubbles: true }));
-          return { ok: true, focused: (el.tagName || "") + "." + (el.className || "").toString().slice(0, 40) };
-        })()
-      `);
+      await cdpPressKey(id, String(p.key || "Enter"));
+      return { pressed: true, key: p.key };
     }
+
+    case "tab_scroll": {
+      // Scroll using CDP
+      const id = await requireTab(p);
+      const direction = p.direction || "down";
+      const amount = Number(p.amount || 500);
+      const x = Number(p.x || 400);
+      const y = Number(p.y || 400);
+      await dbgCmd(id, "Input.dispatchMouseEvent", {
+        type: "mouseWheel", x, y, deltaX: 0,
+        deltaY: direction === "down" ? amount : -amount
+      });
+      return { scrolled: true };
+    }
+
+    // ===== READING =====
 
     case "tab_read": {
       const id = await requireTab(p);
@@ -83,11 +112,6 @@ async function handleCommand(cmd, p) {
       return data;
     }
 
-    case "tab_close": {
-      await chrome.tabs.remove(Number(p.tabId));
-      return { closed: Number(p.tabId) };
-    }
-
     case "tab_screenshot": {
       const id = await requireTab(p);
       const res = await dbgCmd(id, "Page.captureScreenshot", { format: "png" });
@@ -98,6 +122,34 @@ async function handleCommand(cmd, p) {
       const id = await requireTab(p);
       const buf = consoleBuffers.get(String(id)) || [];
       return { entries: buf.slice(-(Number(p.last) || 50)) };
+    }
+
+    // ===== COMPOSITE OPERATIONS =====
+
+    case "tab_click_and_wait": {
+      // Click then wait for navigation
+      const id = await requireTab(p);
+      const url_before = await evalInTab(id, "location.href");
+      await cdpClickSelector(id, String(p.selector));
+      const timeout = Number(p.timeout || 15000);
+      const start = Date.now();
+      while (Date.now() - start < timeout) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const url_now = await evalInTab(id, "location.href");
+          if (url_now !== url_before) return { navigated: true, url: url_now };
+        } catch (e) { /* page might be loading */ }
+      }
+      return { navigated: false };
+    }
+
+    case "tab_fill_and_submit": {
+      // Fill input, then press Enter to submit
+      const id = await requireTab(p);
+      await cdpFillSelector(id, String(p.selector), String(p.text || ""));
+      await new Promise(r => setTimeout(r, 500));
+      await cdpPressKey(id, "Enter");
+      return { filled: true, submitted: true };
     }
   }
   throw new Error("unknown command: " + cmd);
