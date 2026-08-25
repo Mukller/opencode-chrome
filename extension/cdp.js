@@ -1,9 +1,9 @@
-// OpenCode in Chrome - CDP helpers over chrome.debugger
-// ALL interactions use CDP Input domain (real mouse/keyboard events)
-// This makes them indistinguishable from real user input.
+// OpenCode in Chrome - CDP helpers v0.3.0
+// ALL form interactions use CDP Input domain (real mouse/keyboard)
+// NEW: hover, select, wait_for_element, get_text, get_attribute, navigation, cookies
 
 const consoleBuffers = new Map();
-const attached = new Map(); // tabId -> true
+const attached = new Map();
 
 function dbgAttach(tabId) {
   return new Promise((resolve, reject) => {
@@ -15,7 +15,6 @@ function dbgAttach(tabId) {
         return reject(new Error(err.message));
       }
       attached.set(key, true);
-      // Enable required domains
       chrome.debugger.sendCommand({ tabId: key }, "Runtime.enable", () => void chrome.runtime.lastError);
       chrome.debugger.sendCommand({ tabId: key }, "Page.enable", () => void chrome.runtime.lastError);
       resolve();
@@ -44,7 +43,6 @@ chrome.debugger.onDetach.addListener((src) => {
   if (src && src.tabId != null) attached.delete(Number(src.tabId));
 });
 
-// Console capture
 chrome.debugger.onEvent.addListener((source, method, params) => {
   const tabId = source && source.tabId;
   if (!tabId) return;
@@ -60,8 +58,6 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
   }
   while (buf.length > 200) buf.shift();
 });
-
-// ============ HIGH-LEVEL CDP HELPERS ============
 
 async function activeTabId() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -86,7 +82,6 @@ async function evalInTab(tabId, expression, awaitPromise) {
   return res.result && res.result.value;
 }
 
-// Get bounding rect of an element by selector
 async function getElementRect(tabId, selector) {
   return await evalInTab(tabId, `
     (() => {
@@ -99,43 +94,24 @@ async function getElementRect(tabId, selector) {
   `).then(r => r ? JSON.parse(r) : null);
 }
 
-// REAL mouse click at coordinates via CDP Input
 async function cdpMouseClick(tabId, x, y) {
   await dbgAttach(tabId);
-  // Move mouse to position
-  await dbgCmd(tabId, "Input.dispatchMouseEvent", {
-    type: "mouseMoved", x, y, button: "none"
-  });
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
   await new Promise(r => setTimeout(r, 50));
-  // Press
-  await dbgCmd(tabId, "Input.dispatchMouseEvent", {
-    type: "mousePressed", x, y, button: "left", clickCount: 1
-  });
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
   await new Promise(r => setTimeout(r, 50));
-  // Release
-  await dbgCmd(tabId, "Input.dispatchMouseEvent", {
-    type: "mouseReleased", x, y, button: "left", clickCount: 1
-  });
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
 }
 
-// REAL keyboard typing via CDP Input (character by character)
 async function cdpTypeText(tabId, text) {
   await dbgAttach(tabId);
   for (const ch of text) {
-    // Key down
-    await dbgCmd(tabId, "Input.dispatchKeyEvent", {
-      type: "keyDown", text: ch, key: ch, unmodifiedText: ch
-    });
-    // Key up
-    await dbgCmd(tabId, "Input.dispatchKeyEvent", {
-      type: "keyUp", key: ch
-    });
-    // Small delay between characters for React to process
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", text: ch, key: ch, unmodifiedText: ch });
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: ch });
     await new Promise(r => setTimeout(r, 30));
   }
 }
 
-// REAL key press (Enter, Tab, Escape, etc.)
 async function cdpPressKey(tabId, key) {
   await dbgAttach(tabId);
   const keyMap = {
@@ -150,13 +126,11 @@ async function cdpPressKey(tabId, key) {
   await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: kd.key, code: kd.code });
 }
 
-// REAL text insertion (for focused input)
 async function cdpInsertText(tabId, text) {
   await dbgAttach(tabId);
   await dbgCmd(tabId, "Input.insertText", { text });
 }
 
-// Click element by selector using REAL mouse events
 async function cdpClickSelector(tabId, selector) {
   const rect = await getElementRect(tabId, selector);
   if (!rect) throw new Error("element not found: " + selector);
@@ -166,18 +140,55 @@ async function cdpClickSelector(tabId, selector) {
   return { clicked: true, x, y, selector };
 }
 
-// Fill input by selector using REAL click + typing
 async function cdpFillSelector(tabId, selector, text) {
-  // Click to focus
   await cdpClickSelector(tabId, selector);
   await new Promise(r => setTimeout(r, 200));
-  // Clear existing content
-  await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
-  // Select all existing text (Ctrl+A)
   await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, key: "a", code: "KeyA", windowsVirtualKeyCode: 65 });
   await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA" });
   await new Promise(r => setTimeout(r, 50));
-  // Type the text
   await cdpTypeText(tabId, text);
   return { filled: true, text };
+}
+
+// ===== NEW v0.3.0 HELPERS =====
+
+// Hover over element (real mouse move to element center)
+async function cdpHoverSelector(tabId, selector) {
+  const rect = await getElementRect(tabId, selector);
+  if (!rect) throw new Error("element not found: " + selector);
+  const x = Math.round(rect.x + rect.w / 2);
+  const y = Math.round(rect.y + rect.h / 2);
+  await dbgAttach(tabId);
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  return { hovered: true, x, y, selector };
+}
+
+// Double click
+async function cdpDoubleClick(tabId, x, y) {
+  await dbgAttach(tabId);
+  for (let i = 0; i < 2; i++) {
+    await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: i + 1 });
+    await new Promise(r => setTimeout(r, 30));
+    await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: i + 1 });
+  }
+}
+
+// Right click
+async function cdpRightClick(tabId, x, y) {
+  await dbgAttach(tabId);
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1 });
+  await new Promise(r => setTimeout(r, 50));
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1 });
+}
+
+// Wait for element to appear (poll with evalInTab)
+async function waitForElement(tabId, selector, timeoutMs = 15000, shouldExist = true) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const found = await evalInTab(tabId, `!!document.querySelector(${JSON.stringify(selector)})`);
+    if (shouldExist && found) return { found: true, waited: Date.now() - start };
+    if (!shouldExist && !found) return { found: false, waited: Date.now() - start };
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error(`timeout ${timeoutMs}ms waiting for element ${selector} (${shouldExist ? "appear" : "disappear"})`);
 }

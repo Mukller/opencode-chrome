@@ -180,6 +180,20 @@ const TOOLS = [
   { name: "chrome_scroll", description: "Scroll page using mouse wheel events.", inputSchema: { type: "object", properties: { direction: { type: "string", enum: ["up", "down"] }, amount: { type: "number", default: 500 }, tabId: { type: "number" } } } },
   { name: "chrome_click_and_wait", description: "Click element and wait for page navigation.", inputSchema: { type: "object", properties: { selector: { type: "string" }, timeout: { type: "number" }, tabId: { type: "number" } }, required: ["selector"] } },
   { name: "chrome_fill_and_submit", description: "Fill input and press Enter to submit form.", inputSchema: { type: "object", properties: { selector: { type: "string" }, text: { type: "string" }, tabId: { type: "number" } }, required: ["selector", "text"] } },
+  { name: "chrome_tab_switch", description: "Switch focus to a specific tab.", inputSchema: { type: "object", properties: { tabId: { type: "number" } }, required: ["tabId"] } },
+  { name: "chrome_tab_back", description: "Navigate back in browser history.", inputSchema: { type: "object", properties: { tabId: { type: "number" } } } },
+  { name: "chrome_tab_forward", description: "Navigate forward in browser history.", inputSchema: { type: "object", properties: { tabId: { type: "number" } } } },
+  { name: "chrome_tab_refresh", description: "Reload the page.", inputSchema: { type: "object", properties: { tabId: { type: "number" } } } },
+  { name: "chrome_hover", description: "Hover over an element (real mouse move). Needed for dropdowns, tooltips.", inputSchema: { type: "object", properties: { selector: { type: "string" }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_double_click", description: "Double click on element.", inputSchema: { type: "object", properties: { selector: { type: "string" }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_right_click", description: "Right click on element (context menu).", inputSchema: { type: "object", properties: { selector: { type: "string" }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_select", description: "Select option from a <select> dropdown by value or text.", inputSchema: { type: "object", properties: { selector: { type: "string" }, value: { type: "string" }, tabId: { type: "number" } }, required: ["selector", "value"] } },
+  { name: "chrome_wait_for_element", description: "Wait until element appears (or disappears if shouldExist=false).", inputSchema: { type: "object", properties: { selector: { type: "string" }, timeout: { type: "number", default: 15000 }, shouldExist: { type: "boolean", default: true }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_get_text", description: "Get innerText of a specific element by CSS selector.", inputSchema: { type: "object", properties: { selector: { type: "string" }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_get_attribute", description: "Get attribute value (href, src, value, class etc) of element.", inputSchema: { type: "object", properties: { selector: { type: "string" }, attribute: { type: "string" }, tabId: { type: "number" } }, required: ["selector", "attribute"] } },
+  { name: "chrome_get_all_links", description: "Extract all visible links (text + href) from page.", inputSchema: { type: "object", properties: { tabId: { type: "number" } } } },
+  { name: "chrome_find_elements", description: "Find all visible elements matching CSS selector. Returns list with tag, text, id, class, href.", inputSchema: { type: "object", properties: { selector: { type: "string" }, limit: { type: "number", default: 20 }, tabId: { type: "number" } }, required: ["selector"] } },
+  { name: "chrome_cookies_get", description: "Get cookies for a domain (or all domains if not specified). Requires debugger attach.", inputSchema: { type: "object", properties: { domain: { type: "string" }, tabId: { type: "number" } } } },
 ];
 
 async function callTool(name, args) {
@@ -229,6 +243,34 @@ async function callTool(name, args) {
       return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_click_and_wait", args)) }] };
     case "chrome_fill_and_submit":
       return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_fill_and_submit", args)) }] };
+    case "chrome_tab_switch":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_switch", args)) }] };
+    case "chrome_tab_back":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_back", args)) }] };
+    case "chrome_tab_forward":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_forward", args)) }] };
+    case "chrome_tab_refresh":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_refresh", args)) }] };
+    case "chrome_hover":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_hover", args)) }] };
+    case "chrome_double_click":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_double_click", args)) }] };
+    case "chrome_right_click":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_right_click", args)) }] };
+    case "chrome_select":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_select", args)) }] };
+    case "chrome_wait_for_element":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_wait_for_element", args)) }] };
+    case "chrome_get_text":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_get_text", args)) }] };
+    case "chrome_get_attribute":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_get_attribute", args)) }] };
+    case "chrome_get_all_links":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_get_all_links", args)) }] };
+    case "chrome_find_elements":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("tab_find_elements", args)) }] };
+    case "chrome_cookies_get":
+      return { content: [{ type: "text", text: JSON.stringify(await askExtension("cookies_get", args)) }] };
     default:
       throw new Error("unknown tool: " + name);
   }
