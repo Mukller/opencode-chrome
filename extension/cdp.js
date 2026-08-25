@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 // OpenCode in Chrome - CDP helpers v0.4.0+
 // ALL interactions use CDP Input domain + DOM domain
+=======
+// OpenCode in Chrome - CDP helpers v0.3.0
+// ALL form interactions use CDP Input domain (real mouse/keyboard)
+// NEW: hover, select, wait_for_element, get_text, get_attribute, navigation, cookies
+
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
 const consoleBuffers = new Map();
 const attached = new Map();
 
@@ -12,8 +19,13 @@ function dbgAttach(tabId) {
       if (err && !/Another debugger|Already attached/i.test(err.message))
         return reject(new Error(err.message));
       attached.set(key, true);
+<<<<<<< HEAD
       chrome.debugger.sendCommand({tabId: key}, "Runtime.enable", () => void chrome.runtime.lastError);
       chrome.debugger.sendCommand({tabId: key}, "Page.enable", () => void chrome.runtime.lastError);
+=======
+      chrome.debugger.sendCommand({ tabId: key }, "Runtime.enable", () => void chrome.runtime.lastError);
+      chrome.debugger.sendCommand({ tabId: key }, "Page.enable", () => void chrome.runtime.lastError);
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
       resolve();
     });
   });
@@ -30,7 +42,15 @@ function dbgCmd(tabId, method, params) {
 function detachAll() {
   for (const [tabId] of attached) { try { chrome.debugger.detach({tabId}); } catch(e) {} attached.delete(tabId); }
 }
+<<<<<<< HEAD
 chrome.debugger.onDetach.addListener(src => { if (src && src.tabId != null) attached.delete(Number(src.tabId)); });
+=======
+
+chrome.debugger.onDetach.addListener((src) => {
+  if (src && src.tabId != null) attached.delete(Number(src.tabId));
+});
+
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
 chrome.debugger.onEvent.addListener((source, method, params) => {
   const tabId = source && source.tabId; if (!tabId) return;
   const key = String(tabId);
@@ -45,13 +65,32 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
   while (buf.length > 200) buf.shift();
 });
 
+<<<<<<< HEAD
 async function activeTabId() { const tabs = await chrome.tabs.query({active:true,currentWindow:true}); if (!tabs.length) throw new Error("no active tab"); return tabs[0].id; }
 async function requireTab(p) { const id = p && p.tabId != null ? Number(p.tabId) : await activeTabId(); await dbgAttach(id); return id; }
+=======
+async function activeTabId() {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tabs.length) throw new Error("no active tab");
+  return tabs[0].id;
+}
+
+async function requireTab(p) {
+  const id = p && p.tabId != null ? Number(p.tabId) : await activeTabId();
+  await dbgAttach(id);
+  return id;
+}
+
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
 async function evalInTab(tabId, expression, awaitPromise) {
   const res = await dbgCmd(tabId, "Runtime.evaluate", {expression, awaitPromise:!!awaitPromise, returnByValue:true, userGesture:true});
   if (res.exceptionDetails) { const d = res.exceptionDetails; throw new Error("JS: " + (d.text||"") + " " + ((d.exception && (d.exception.value || d.exception.description)) || "")); }
   return res.result && res.result.value;
 }
+<<<<<<< HEAD
+=======
+
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
 async function getElementRect(tabId, selector) {
   return await evalInTab(tabId, `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return null; el.scrollIntoView({block:'center'}); const r = el.getBoundingClientRect(); return JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}); })()`).then(r => r ? JSON.parse(r) : null);
 }
@@ -228,6 +267,7 @@ async function cdpGetComputedStyle(tabId, selector, properties) {
   `).then(r=>r?JSON.parse(r):null);
 }
 
+<<<<<<< HEAD
 // ===== v0.5 ELEMENT HTML =====
 async function cdpGetElementHTML(tabId, selector, outer) {
   await dbgAttach(tabId);
@@ -252,6 +292,27 @@ async function cdpGetCookies(tabId, domain) {
 
 // ===== v0.6 LOCAL STORAGE =====
 async function cdpLocalStorage(tabId, action, key, value) {
+=======
+async function cdpMouseClick(tabId, x, y) {
+  await dbgAttach(tabId);
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "none" });
+  await new Promise(r => setTimeout(r, 50));
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: 1 });
+  await new Promise(r => setTimeout(r, 50));
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+}
+
+async function cdpTypeText(tabId, text) {
+  await dbgAttach(tabId);
+  for (const ch of text) {
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", text: ch, key: ch, unmodifiedText: ch });
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: ch });
+    await new Promise(r => setTimeout(r, 30));
+  }
+}
+
+async function cdpPressKey(tabId, key) {
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
   await dbgAttach(tabId);
   if (action === "get") return {value: await evalInTab(tabId, `localStorage.getItem(${JSON.stringify(key)})`)};
   if (action === "set") { await evalInTab(tabId, `localStorage.setItem(${JSON.stringify(key)}, ${JSON.stringify(value)})`); return {set:true}; }
@@ -260,12 +321,17 @@ async function cdpLocalStorage(tabId, action, key, value) {
   return {};
 }
 
+<<<<<<< HEAD
 // ===== v0.7 VIEWPORT / EMULATION =====
 async function cdpSetViewport(tabId, width, height) {
+=======
+async function cdpInsertText(tabId, text) {
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
   await dbgAttach(tabId);
   await dbgCmd(tabId, "Emulation.setDeviceMetricsOverride", {width, height, deviceScaleFactor:1, mobile: width < 768});
   return {viewport:{width, height}};
 }
+<<<<<<< HEAD
 async function cdpSetUserAgent(tabId, userAgent) {
   await dbgAttach(tabId);
   await dbgCmd(tabId, "Emulation.setUserAgentOverride", {userAgent});
@@ -287,4 +353,67 @@ async function cdpEmulateNetwork(tabId, condition) {
   const c = conditions[condition] || condition;
   await dbgCmd(tabId, "Network.emulateNetworkConditions", {...c, offline:false});
   return {emulated:condition};
+=======
+
+async function cdpClickSelector(tabId, selector) {
+  const rect = await getElementRect(tabId, selector);
+  if (!rect) throw new Error("element not found: " + selector);
+  const x = Math.round(rect.x + rect.w / 2);
+  const y = Math.round(rect.y + rect.h / 2);
+  await cdpMouseClick(tabId, x, y);
+  return { clicked: true, x, y, selector };
+}
+
+async function cdpFillSelector(tabId, selector, text) {
+  await cdpClickSelector(tabId, selector);
+  await new Promise(r => setTimeout(r, 200));
+  await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, key: "a", code: "KeyA", windowsVirtualKeyCode: 65 });
+  await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: "a", code: "KeyA" });
+  await new Promise(r => setTimeout(r, 50));
+  await cdpTypeText(tabId, text);
+  return { filled: true, text };
+}
+
+// ===== NEW v0.3.0 HELPERS =====
+
+// Hover over element (real mouse move to element center)
+async function cdpHoverSelector(tabId, selector) {
+  const rect = await getElementRect(tabId, selector);
+  if (!rect) throw new Error("element not found: " + selector);
+  const x = Math.round(rect.x + rect.w / 2);
+  const y = Math.round(rect.y + rect.h / 2);
+  await dbgAttach(tabId);
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
+  return { hovered: true, x, y, selector };
+}
+
+// Double click
+async function cdpDoubleClick(tabId, x, y) {
+  await dbgAttach(tabId);
+  for (let i = 0; i < 2; i++) {
+    await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", clickCount: i + 1 });
+    await new Promise(r => setTimeout(r, 30));
+    await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: i + 1 });
+  }
+}
+
+// Right click
+async function cdpRightClick(tabId, x, y) {
+  await dbgAttach(tabId);
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "right", clickCount: 1 });
+  await new Promise(r => setTimeout(r, 50));
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "right", clickCount: 1 });
+}
+
+// Wait for element to appear (poll with evalInTab)
+async function waitForElement(tabId, selector, timeoutMs = 15000, shouldExist = true) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const found = await evalInTab(tabId, `!!document.querySelector(${JSON.stringify(selector)})`);
+    if (shouldExist && found) return { found: true, waited: Date.now() - start };
+    if (!shouldExist && !found) return { found: false, waited: Date.now() - start };
+    await new Promise(r => setTimeout(r, 500));
+  }
+  throw new Error(`timeout ${timeoutMs}ms waiting for element ${selector} (${shouldExist ? "appear" : "disappear"})`);
+>>>>>>> ca63c4f27e5a83dfe79495756900ac4b52e14521
 }
