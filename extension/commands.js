@@ -281,6 +281,12 @@ async function handleCommand(cmd, p) {
     case "wait_and_retry": { const id = await requireTab(p); return await cdpWaitAndRetry(id, String(p.action), String(p.selector), p.text, Number(p.maxRetries||3), Number(p.delayMs||2000)); }
     case "tab_select_file": { const id = await requireTab(p); await cdpUploadFile(id, String(p.selector), String(p.filePath)); return {selected:true}; }
 
+    // ===== v0.6.0 ANTI-BOT REALISM =====
+    case "click_in_shadow": { const id = await requireTab(p); return await cdpClickInShadow(id, String(p.selector)); }
+    case "hover_and_reveal": { const id = await requireTab(p); return await cdpHoverAndReveal(id, String(p.selector), p.waitMs); }
+    case "human_type": { const id = await requireTab(p); return await cdpHumanType(id, String(p.text||""), p.opts || {}); }
+    case "scroll_to_element": { const id = await requireTab(p); return await cdpScrollToElement(id, String(p.selector)); }
+
   }
   throw new Error("unknown command: " + cmd);
 }

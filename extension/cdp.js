@@ -1,6 +1,6 @@
-// OpenCode in Chrome - CDP helpers v0.3.0
+// OpenCode in Chrome - CDP helpers v0.6.0
 // ALL form interactions use CDP Input domain (real mouse/keyboard)
-// NEW: hover, select, wait_for_element, get_text, get_attribute, navigation, cookies
+// v0.6.0: click_in_shadow, hover_and_reveal, human_type (anti-bot realism)
 
 const consoleBuffers = new Map();
 const attached = new Map();
@@ -347,4 +347,98 @@ async function cdpWaitAndRetry(tabId, action, selector, text, maxRetries, delayM
     } catch(e) { if (i === maxRetries-1) throw e; }
     await new Promise(r=>setTimeout(r,delayMs));
   }
+}
+
+// v0.6.0 ===== ANTI-BOT REALISM =====
+
+// cdpClickInShadow: pierces shadow DOM (incl. open + closed) to find selector, then CDP Input click
+async function cdpClickInShadow(tabId, selector) {
+  const expr = `(() => {
+    function deepQuery(root, sel) {
+      try {
+        const el = root.querySelector(sel);
+        if (el) return el;
+      } catch(e) {}
+      for (const el of root.querySelectorAll('*')) {
+        if (el.shadowRoot) {
+          const found = deepQuery(el.shadowRoot, sel);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    const el = deepQuery(document, ${JSON.stringify(selector)});
+    if (!el) return JSON.stringify({ok:false, error:'not found'});
+    el.scrollIntoView({block: 'center'});
+    const r = el.getBoundingClientRect();
+    return JSON.stringify({ok:true, x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2), tag: el.tagName});
+  })()`;
+  const result = JSON.parse(await evalInTab(tabId, expr));
+  if (!result.ok) throw new Error(result.error);
+  await cdpMouseClick(tabId, result.x, result.y);
+  return { clicked: true, x: result.x, y: result.y, tag: result.tag, via: "shadow" };
+}
+
+// cdpHoverAndReveal: hovers, waits for hidden edit/pencil buttons to appear, returns their coords
+async function cdpHoverAndReveal(tabId, selector, waitMs) {
+  const ms = Number(waitMs) || 2000;
+  const expr = `(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return JSON.stringify({ok:false, error:'element not found'});
+    const r = el.getBoundingClientRect();
+    return JSON.stringify({ok:true, x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)});
+  })()`;
+  const result = JSON.parse(await evalInTab(tabId, expr));
+  if (!result.ok) throw new Error(result.error);
+  await cdpHoverCoords(tabId, result.x, result.y);
+  await new Promise(r => setTimeout(r, ms));
+  return { hovered: true, x: result.x, y: result.y, waitMs: ms };
+}
+
+// cdpHoverCoords: hover at arbitrary coordinates
+async function cdpHoverCoords(tabId, x, y) {
+  await dbgCmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x: Number(x), y: Number(y) });
+  await new Promise(r => setTimeout(r, 100));
+}
+
+// cdpHumanType: types with realistic jitter (50-150ms per char, optional typos with backspace)
+async function cdpHumanType(tabId, text, opts) {
+  const o = opts || {};
+  const minDelay = Number(o.minDelay) || 50;
+  const maxDelay = Number(o.maxDelay) || 150;
+  const typoRate = Number(o.typoRate) || 0; // 0..1
+  const str = String(text || "");
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    // occasional typo: wrong key + backspace
+    if (typoRate > 0 && Math.random() < typoRate && i < str.length - 1) {
+      const wrong = String.fromCharCode(ch.charCodeAt(0) + 1);
+      await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", text: wrong, key: wrong, unmodifiedText: wrong });
+      await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: wrong });
+      await new Promise(r => setTimeout(r, 80 + Math.random() * 60));
+      await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", text: "Backspace", key: "Backspace", code: "Backspace", unmodifiedText: "Backspace", windowsVirtualKeyCode: 8 });
+      await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: "Backspace", code: "Backspace", windowsVirtualKeyCode: 8 });
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 80));
+    }
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyDown", text: ch, key: ch, unmodifiedText: ch });
+    await dbgCmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", key: ch });
+    await new Promise(r => setTimeout(r, minDelay + Math.random() * (maxDelay - minDelay)));
+  }
+  await new Promise(r => setTimeout(r, 500));
+  return { typed: true, chars: str.length, human: true };
+}
+
+// cdpScrollToElement: scrolls element into view smoothly
+async function cdpScrollToElement(tabId, selector) {
+  const result = await evalInTab(tabId, `(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return JSON.stringify({ok:false});
+    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+    const r = el.getBoundingClientRect();
+    return JSON.stringify({ok:true, x: Math.round(r.x + r.width/2), y: Math.round(r.y + r.height/2)});
+  })()`);
+  const parsed = JSON.parse(result);
+  if (!parsed.ok) throw new Error("element not found: " + selector);
+  await new Promise(r => setTimeout(r, 1000));
+  return parsed;
 }
