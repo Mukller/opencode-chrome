@@ -1,6 +1,7 @@
 ﻿node_modules/
 package-lock.json
 .edge-profile/
+.chrome-profile/
 *.log
 bridge.log
 
@@ -14,3 +15,20 @@ oc-last-screenshot.png
 oc-shot.png
 targets.json
 feed-ws.txt
+
+# Debug/test scripts (not for repo)
+add_about*.mjs
+check_token.mjs
+chrome_about.mjs
+debug_buttons.mjs
+edge_about.mjs
+set_token*.mjs
+test_bridge.mjs
+test_v6.mjs
+v6_about_test.mjs
+scripts/add_about.mjs
+scripts/antigravity_auth.mjs
+scripts/cdp_click_account.mjs
+scripts/cdp_shot.mjs
+scripts/check_auth_page.mjs
+scripts/click_google_account.mjs
