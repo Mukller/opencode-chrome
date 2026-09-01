@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // OpenCode in Chrome - bridge v0.6.0
 // WebSocket server (for the Chrome extension) + MCP stdio server (for opencode).
 //
@@ -52,6 +53,28 @@ function askExtension(cmd, params = {}, timeoutMs = 45000) {
     pending.set(id, { resolve, reject, timer });
     extSock.send(JSON.stringify({ type: "req", id, cmd, params }));
   });
+}
+
+// v0.6.0: askExtensionWithRetry handles MV3 SW disconnect/reconnect.
+// If the extension disconnects mid-request, wait for it to reconnect and retry.
+async function askExtensionWithRetry(cmd, params = {}, opts = {}) {
+  const maxRetries = opts.maxRetries ?? 5;
+  const baseDelayMs = opts.baseDelayMs ?? 2000;
+  const timeoutMs = opts.timeoutMs ?? 20000;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await askExtension(cmd, params, timeoutMs);
+    } catch (e) {
+      const msg = e.message || "";
+      const isTransient = msg.includes("timeout") || msg.includes("disconnected") || msg.includes("not connected");
+      if (!isTransient || attempt === maxRetries - 1) throw e;
+      // Wait for extension to reconnect (chrome.alarms wakes SW every 24s)
+      const delay = baseDelayMs * Math.pow(1.5, attempt);
+      console.error(`[bridge] ${cmd} failed (${msg}), retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
 }
 
 function driverSend(sock, obj) {
@@ -382,7 +405,7 @@ async function handleMcpLine(line) {
       result: {
         protocolVersion: params.protocolVersion || "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "opencode-chrome-bridge", version: "0.1.0" },
+        serverInfo: { name: "opencode-chrome-bridge", version: "0.6.0" },
       },
     });
     return;
