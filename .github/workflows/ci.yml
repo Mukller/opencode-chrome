@@ -1,0 +1,102 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Unit Tests (Bridge Harness)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+        timeout-minutes: 5
+
+  extension-syntax:
+    name: Extension Syntax Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node --check extension/background.js
+      - run: node --check extension/commands.js
+      - run: node --check extension/cdp.js
+      - run: node --check extension/manifest.json
+
+  scripts-syntax:
+    name: Scripts Syntax Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: |
+          for f in scripts/*.mjs; do
+            node --check "$f" || exit 1
+          done
+
+  test-bridge:
+    name: Bridge Start/Stop Test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Start bridge
+        run: |
+          node bridge/bridge.mjs &
+          sleep 3
+      - name: Check bridge port
+        run: |
+          timeout 10 bash -c 'until curl -s http://127.0.0.1:8766/json/version 2>/dev/null | grep -q "WebSocket"; do sleep 1; done'
+      - name: Kill bridge
+        run: pkill -f "bridge.mjs" || true
+
+  build:
+    name: Build & Package (Future Chrome Web Store)
+    runs-on: windows-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, test, extension-syntax, scripts-syntax, test-bridge]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: |
+          echo "Version: $(node -p "require('./package.json').version")"
+          echo "Manifest version: $(node -p "require('./extension/manifest.json').version")"
+      - name: Create extension zip
+        run: |
+          7z a -tzip opencode-chrome-${{ github.sha }}.zip extension/ -xr!.git -xr!node_modules -xr!.github
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opencode-chrome-extension
+          path: opencode-chrome-*.zip
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true

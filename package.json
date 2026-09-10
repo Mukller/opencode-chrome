@@ -1,7 +1,7 @@
 {
   "name": "opencode-chrome-bridge",
-  "version": "0.1.0",
-  "description": "Bridge between the OpenCode in Chrome extension and MCP clients (opencode)",
+  "version": "0.6.0",
+  "description": "Bridge between the OpenCode in Chrome extension and MCP clients (opencode). 62 browser automation tools via CDP Input domain (real mouse/keyboard events).",
   "type": "module",
   "main": "bridge.mjs",
   "bin": {
@@ -9,10 +9,42 @@
   },
   "scripts": {
     "start": "node bridge.mjs",
-    "test": "node test/harness.mjs"
+    "test": "node test/harness.mjs",
+    "test:watch": "node --watch test/harness.mjs",
+    "lint": "node --check bridge.mjs && node --check extension/background.js && node --check extension/commands.js && node --check extension/cdp.js && node --check scripts/*.mjs",
+    "dev": "node scripts/auto.mjs",
+    "watchdog": "node scripts/watchdog.mjs",
+    "post": "node scripts/post_linkedin.mjs",
+    "verify": "node scripts/verify_skills.mjs"
   },
+  "keywords": [
+    "mcp",
+    "browser",
+    "automation",
+    "cdp",
+    "chrome",
+    "edge",
+    "linkedin",
+    "opencode"
+  ],
+  "author": "Anton Petnitsky",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mukller/opencode-chrome.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mukller/opencode-chrome/issues"
+  },
+  "homepage": "https://github.com/Mukller/opencode-chrome#readme",
   "dependencies": {
     "ws": "^8.21.3"
   },
-  "license": "MIT"
+  "devDependencies": {
+    "@types/ws": "^8.5.10",
+    "eslint": "^8.57.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
