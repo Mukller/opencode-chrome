@@ -50,6 +50,15 @@ ext.on("message", (raw) => {
         return reply(true, { title: "T", url: "u", text: "hello world" });
       case "tab_screenshot":
         return reply(true, { base64: Buffer.from("fakepng").toString("base64") });
+      // v0.6.0 anti-bot tools
+      case "click_in_shadow":
+        return reply(true, { clicked: true, x: 100, y: 100, tag: "DIV", via: "shadow" });
+      case "hover_and_reveal":
+        return reply(true, { hovered: true, x: 100, y: 100, waitMs: 2000 });
+      case "human_type":
+        return reply(true, { typed: true, chars: msg.params.text?.length || 0, human: true });
+      case "scroll_to_element":
+        return reply(true, { x: 200, y: 200, ok: true });
       default:
         return reply(false, null);
     }
@@ -130,6 +139,26 @@ await new Promise((r) => setTimeout(r, 300));
   // unknown tool -> clean MCP error result
   const res = await rpc("tools/call", { name: "nope", arguments: {} });
   ok("unknown tool -> isError", res.result.isError === true);
+}
+{
+  // v0.6.0 click_in_shadow
+  const res = await rpc("tools/call", { name: "chrome_click_in_shadow", arguments: { selector: ".foo" } });
+  ok("click_in_shadow -> returns clicked coords", res.result.content[0].text.includes("clicked"));
+}
+{
+  // v0.6.0 hover_and_reveal
+  const res = await rpc("tools/call", { name: "chrome_hover_and_reveal", arguments: { selector: ".bar", waitMs: 1500 } });
+  ok("hover_and_reveal -> returns hovered", res.result.content[0].text.includes("hovered"));
+}
+{
+  // v0.6.0 human_type
+  const res = await rpc("tools/call", { name: "chrome_human_type", arguments: { text: "hello world" } });
+  ok("human_type -> returns typed", res.result.content[0].text.includes("typed"));
+}
+{
+  // v0.6.0 scroll_to_element
+  const res = await rpc("tools/call", { name: "chrome_scroll_to_element", arguments: { selector: "#target" } });
+  ok("scroll_to_element -> returns coords", res.result.content[0].text.includes("200"));
 }
 {
   // extension offline -> friendly error
